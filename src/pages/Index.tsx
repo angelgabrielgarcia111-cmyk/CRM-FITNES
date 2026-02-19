@@ -1,12 +1,59 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import React, { useState } from 'react';
+import { View } from '@/types';
+import AppSidebar from '@/components/AppSidebar';
+import Topbar from '@/components/Topbar';
+import DashboardModule from '@/modules/DashboardModule';
+import EmptyState from '@/components/EmptyState';
+
+const viewLabels: Record<View, string> = {
+  [View.DASHBOARD]: 'Início',
+  [View.ALUNOS]: 'Gestão de Alunos',
+  [View.AGENDA]: 'Controle de Agenda',
+  [View.NOTIFICACOES]: 'Notificações',
+  [View.CONSULTORIA]: 'Consultoria',
+  [View.PREDEFINICOES]: 'Predefinições',
+  [View.GAMIFICACAO]: 'Gamificação',
+  [View.COMUNICACAO]: 'Comunicação',
+  [View.PAGAMENTOS]: 'Pagamentos',
+  [View.PRODUTOS_CURSOS]: 'Produtos e Cursos',
+  [View.AVALIACOES_RELATORIOS]: 'Avaliações e Relatórios',
+  [View.IA_CREATION]: 'Criação com IA',
+  [View.CONFIGURACOES]: 'Configurações',
+};
 
 const Index = () => {
+  const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
+
+  const renderView = () => {
+    switch (currentView) {
+      case View.DASHBOARD:
+        return <DashboardModule />;
+      default:
+        return (
+          <EmptyState 
+            title={viewLabels[currentView] || currentView.replace(/_/g, ' ')} 
+            onBack={() => setCurrentView(View.DASHBOARD)} 
+          />
+        );
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="flex min-h-screen bg-background text-foreground">
+      <AppSidebar 
+        currentView={currentView} 
+        onViewChange={setCurrentView} 
+        isOpen={isSidebarOpen} 
+        onToggle={() => setSidebarOpen(!isSidebarOpen)} 
+      />
+      
+      <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
+        <Topbar />
+        <div className="p-8 max-w-[1600px] mx-auto">
+          {renderView()}
+        </div>
+      </main>
     </div>
   );
 };
