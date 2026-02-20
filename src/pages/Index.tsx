@@ -4,6 +4,7 @@ import AppSidebar from '@/components/AppSidebar';
 import Topbar from '@/components/Topbar';
 import DashboardModule from '@/modules/DashboardModule';
 import StudentsModule from '@/modules/StudentsModule';
+import AgendaModule from '@/modules/AgendaModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -32,6 +33,8 @@ const Index = () => {
         return <DashboardModule />;
       case View.ALUNOS:
         return <StudentsModule />;
+      case View.AGENDA:
+        return <AgendaModule />;
       default:
         return (
           <EmptyState 
