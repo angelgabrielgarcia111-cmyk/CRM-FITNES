@@ -13,6 +13,7 @@ import ComunicacaoModule from '@/modules/ComunicacaoModule';
 import PagamentosModule from '@/modules/PagamentosModule';
 import ProdutosCursosModule from '@/modules/ProdutosCursosModule';
 import AvaliacoesModule from '@/modules/AvaliacoesModule';
+import IACriationModule from '@/modules/IACriationModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -59,6 +60,8 @@ const Index = () => {
         return <ProdutosCursosModule />;
       case View.AVALIACOES_RELATORIOS:
         return <AvaliacoesModule />;
+      case View.IA_CREATION:
+        return <IACriationModule />;
       default:
         return (
           <EmptyState 
