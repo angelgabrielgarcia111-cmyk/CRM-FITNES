@@ -5,6 +5,7 @@ import Topbar from '@/components/Topbar';
 import DashboardModule from '@/modules/DashboardModule';
 import StudentsModule from '@/modules/StudentsModule';
 import AgendaModule from '@/modules/AgendaModule';
+import NotificacoesModule from '@/modules/NotificacoesModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -35,6 +36,8 @@ const Index = () => {
         return <StudentsModule />;
       case View.AGENDA:
         return <AgendaModule />;
+      case View.NOTIFICACOES:
+        return <NotificacoesModule />;
       default:
         return (
           <EmptyState 
