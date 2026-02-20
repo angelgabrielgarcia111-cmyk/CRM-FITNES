@@ -10,6 +10,7 @@ import ConsultoriaModule from '@/modules/ConsultoriaModule';
 import PredefinicoesModule from '@/modules/PredefinicoesModule';
 import GamificacaoModule from '@/modules/GamificacaoModule';
 import ComunicacaoModule from '@/modules/ComunicacaoModule';
+import PagamentosModule from '@/modules/PagamentosModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -50,6 +51,8 @@ const Index = () => {
         return <GamificacaoModule />;
       case View.COMUNICACAO:
         return <ComunicacaoModule />;
+      case View.PAGAMENTOS:
+        return <PagamentosModule />;
       default:
         return (
           <EmptyState 
