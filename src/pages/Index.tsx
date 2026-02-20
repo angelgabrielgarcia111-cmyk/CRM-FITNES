@@ -14,6 +14,7 @@ import PagamentosModule from '@/modules/PagamentosModule';
 import ProdutosCursosModule from '@/modules/ProdutosCursosModule';
 import AvaliacoesModule from '@/modules/AvaliacoesModule';
 import IACriationModule from '@/modules/IACriationModule';
+import ConfiguracoesModule from '@/modules/ConfiguracoesModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -62,10 +63,12 @@ const Index = () => {
         return <AvaliacoesModule />;
       case View.IA_CREATION:
         return <IACriationModule />;
+      case View.CONFIGURACOES:
+        return <ConfiguracoesModule />;
       default:
         return (
           <EmptyState 
-            title={viewLabels[currentView] || currentView.replace(/_/g, ' ')} 
+            title={(currentView as string).replace(/_/g, ' ')} 
             onBack={() => setCurrentView(View.DASHBOARD)} 
           />
         );
