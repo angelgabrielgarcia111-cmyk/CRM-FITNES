@@ -7,6 +7,7 @@ import StudentsModule from '@/modules/StudentsModule';
 import AgendaModule from '@/modules/AgendaModule';
 import NotificacoesModule from '@/modules/NotificacoesModule';
 import ConsultoriaModule from '@/modules/ConsultoriaModule';
+import PredefinicoesModule from '@/modules/PredefinicoesModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -41,6 +42,8 @@ const Index = () => {
         return <NotificacoesModule />;
       case View.CONSULTORIA:
         return <ConsultoriaModule />;
+      case View.PREDEFINICOES:
+        return <PredefinicoesModule />;
       default:
         return (
           <EmptyState 
