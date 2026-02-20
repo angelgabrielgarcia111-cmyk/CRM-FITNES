@@ -3,6 +3,7 @@ import { Settings, User, Bell, Shield, Palette, Link2, Database } from 'lucide-r
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 type SettingsTab = 'perfil' | 'notificacoes' | 'seguranca' | 'aparencia' | 'integracoes' | 'dados';
 
@@ -14,6 +15,56 @@ const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'integracoes', label: 'INTEGRAÇÕES', icon: <Link2 size={16} /> },
   { id: 'dados', label: 'DADOS', icon: <Database size={16} /> },
 ];
+
+const PerfilContent = () => (
+  <div className="space-y-8">
+    <div className="space-y-6">
+      <h2 className="text-xl font-bold text-foreground">Informações do Perfil</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-bold text-muted-foreground tracking-wider">NOME COMPLETO</label>
+          <Input defaultValue="Professor Atlon" className="bg-background border-border mt-1" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-muted-foreground tracking-wider">EMAIL</label>
+          <Input defaultValue="professor@atlon.com" className="bg-background border-border mt-1" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-muted-foreground tracking-wider">TELEFONE</label>
+          <Input defaultValue="(11) 99999-9999" className="bg-background border-border mt-1" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-muted-foreground tracking-wider">ESPECIALIZAÇÃO</label>
+          <Input defaultValue="Personal Trainer, Nutricionista" className="bg-background border-border mt-1" />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs font-bold text-muted-foreground tracking-wider">SOBRE</label>
+        <Textarea defaultValue="Personal trainer com 10 anos de experiência, especializado em hipertrofia e emagrecimento..." className="bg-background border-border mt-1 min-h-[100px]" />
+      </div>
+    </div>
+
+    <div className="space-y-6">
+      <h2 className="text-xl font-bold text-foreground">Academia</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-bold text-muted-foreground tracking-wider">NOME DA ACADEMIA</label>
+          <Input defaultValue="Atlon Fitness Center" className="bg-background border-border mt-1" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-muted-foreground tracking-wider">CNPJ</label>
+          <Input defaultValue="12.345.678/0001-90" className="bg-background border-border mt-1" />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs font-bold text-muted-foreground tracking-wider">ENDEREÇO</label>
+        <Input defaultValue="Rua das Academias, 123 - São Paulo, SP" className="bg-background border-border mt-1" />
+      </div>
+    </div>
+
+    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">Salvar Alterações</Button>
+  </div>
+);
 
 const NotificacoesContent = () => {
   const [emailEnabled, setEmailEnabled] = useState(true);
@@ -118,7 +169,7 @@ const ConfiguracoesModule: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'perfil':
-        return <PlaceholderContent title="Perfil" message="Configurações de perfil em desenvolvimento..." />;
+        return <PerfilContent />;
       case 'notificacoes':
         return <NotificacoesContent />;
       case 'seguranca':
