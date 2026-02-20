@@ -6,6 +6,7 @@ import DashboardModule from '@/modules/DashboardModule';
 import StudentsModule from '@/modules/StudentsModule';
 import AgendaModule from '@/modules/AgendaModule';
 import NotificacoesModule from '@/modules/NotificacoesModule';
+import ConsultoriaModule from '@/modules/ConsultoriaModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -38,6 +39,8 @@ const Index = () => {
         return <AgendaModule />;
       case View.NOTIFICACOES:
         return <NotificacoesModule />;
+      case View.CONSULTORIA:
+        return <ConsultoriaModule />;
       default:
         return (
           <EmptyState 
