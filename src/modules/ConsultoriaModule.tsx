@@ -1,14 +1,101 @@
 import React, { useState } from 'react';
-import { Search, Utensils, Dumbbell } from 'lucide-react';
+import { Search, Utensils, Dumbbell, ArrowLeft, Phone, MessageSquare, Camera } from 'lucide-react';
 
-const consultorias = [
-  { name: 'Evandro Amaral', email: 'empresaamaral4002@gmail.com', plan: 'Consultoria P', modality: 'Dieta', modalityIcon: 'diet', status: 'pendente', days: 30 },
-  { name: 'Maria Silva', email: 'maria.silva@email.com', plan: 'Consultoria Básica', modality: 'Treino', modalityIcon: 'treino', status: 'entregue', days: 15 },
+interface Consultoria {
+  name: string;
+  email: string;
+  plan: string;
+  modality: string;
+  modalityIcon: string;
+  status: string;
+  days: number;
+  age: number;
+  height: string;
+  weight: string;
+}
+
+const consultorias: Consultoria[] = [
+  { name: 'Evandro Amaral', email: 'empresaamaral4002@gmail.com', plan: 'Consultoria P', modality: 'Dieta', modalityIcon: 'diet', status: 'pendente', days: 30, age: 20, height: '180 cm', weight: '88 kg' },
+  { name: 'Maria Silva', email: 'maria.silva@email.com', plan: 'Consultoria Básica', modality: 'Treino', modalityIcon: 'treino', status: 'entregue', days: 15, age: 25, height: '165 cm', weight: '62 kg' },
 ];
+
+const tabs = ['Progresso', 'Agendamentos', 'Anamnese', 'Avaliações', 'Dietas', 'Treinos', 'Exames', 'Feedbacks', 'Fotos', 'Logbook', 'Notas'];
+
+const StudentDetail: React.FC<{ student: Consultoria; onBack: () => void }> = ({ student, onBack }) => {
+  const [activeTab, setActiveTab] = useState('Progresso');
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft size={16} />
+            Voltar
+          </button>
+          <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xl font-bold">
+            {student.name.charAt(0)}
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">{student.name}</h1>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+              <span>{student.age} anos</span>
+              <span>{student.height}</span>
+              <span>{student.weight}</span>
+              <span>{student.plan}</span>
+            </div>
+            <span className="inline-block mt-1.5 text-xs font-medium bg-primary/20 text-primary px-3 py-0.5 rounded-full">
+              {student.days} dias restantes
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            <Phone size={14} /> WhatsApp
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg text-sm font-medium hover:bg-muted/50 transition-colors">
+            <MessageSquare size={14} /> Mensagem
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg text-sm font-medium hover:bg-muted/50 transition-colors">
+            <Camera size={14} /> Finalizar
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="flex overflow-x-auto border-b border-border">
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                activeTab === tab
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <div className="p-8 text-center">
+          <h3 className="text-lg font-bold text-foreground mb-1">{activeTab}</h3>
+          <p className="text-sm text-muted-foreground">Conteúdo de {activeTab} em desenvolvimento...</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ConsultoriaModule: React.FC = () => {
   const [searchName, setSearchName] = useState('');
   const [searchEmail, setSearchEmail] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<Consultoria | null>(null);
+
+  if (selectedStudent) {
+    return <StudentDetail student={selectedStudent} onBack={() => setSelectedStudent(null)} />;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -69,7 +156,7 @@ const ConsultoriaModule: React.FC = () => {
             </thead>
             <tbody>
               {consultorias.map(c => (
-                <tr key={c.email} className="border-b border-border/50 last:border-0 hover:bg-muted/5 transition-colors">
+                <tr key={c.email} onClick={() => setSelectedStudent(c)} className="border-b border-border/50 last:border-0 hover:bg-muted/5 transition-colors cursor-pointer">
                   <td className="px-5 py-4">
                     <div className={`w-3 h-3 rounded-full ${c.status === 'pendente' ? 'bg-destructive' : 'bg-primary'}`} />
                   </td>
