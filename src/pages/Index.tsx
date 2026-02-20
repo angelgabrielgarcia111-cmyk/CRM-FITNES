@@ -11,6 +11,7 @@ import PredefinicoesModule from '@/modules/PredefinicoesModule';
 import GamificacaoModule from '@/modules/GamificacaoModule';
 import ComunicacaoModule from '@/modules/ComunicacaoModule';
 import PagamentosModule from '@/modules/PagamentosModule';
+import ProdutosCursosModule from '@/modules/ProdutosCursosModule';
 import EmptyState from '@/components/EmptyState';
 
 const viewLabels: Record<View, string> = {
@@ -53,6 +54,8 @@ const Index = () => {
         return <ComunicacaoModule />;
       case View.PAGAMENTOS:
         return <PagamentosModule />;
+      case View.PRODUTOS_CURSOS:
+        return <ProdutosCursosModule />;
       default:
         return (
           <EmptyState 
