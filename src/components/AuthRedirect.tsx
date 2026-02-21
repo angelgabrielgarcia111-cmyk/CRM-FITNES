@@ -22,7 +22,12 @@ const AuthRedirect = () => {
     return <Navigate to="/aluno" replace />;
   }
 
-  return <Navigate to="/dashboard" replace />;
+  if (role === 'trainer') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // role is null/unknown — don't default to dashboard, send to login
+  return <Navigate to="/login" replace />;
 };
 
 export default AuthRedirect;

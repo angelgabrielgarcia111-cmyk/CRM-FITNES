@@ -24,14 +24,8 @@ const RoleRoute = ({ children, allowedRole }: RoleRouteProps) => {
   }
 
   if (!role) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-center p-8">
-        <div className="space-y-4">
-          <h1 className="text-2xl font-bold text-foreground">Erro de acesso</h1>
-          <p className="text-muted-foreground">Não foi possível determinar seu perfil. Entre em contato com o suporte.</p>
-        </div>
-      </div>
-    );
+    // No role determined — redirect to login instead of showing error or defaulting to dashboard
+    return <Navigate to="/login" replace />;
   }
 
   if (role !== allowedRole) {

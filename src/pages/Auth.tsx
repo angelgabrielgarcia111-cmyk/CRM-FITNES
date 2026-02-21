@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 
 const Auth = () => {
@@ -15,30 +15,79 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const { session, role, loading: authLoading } = useAuth();
 
   if (session && !authLoading) {
-    const target = role === 'student' ? '/aluno' : '/dashboard';
-    return <Navigate to={target} replace />;
+    if (role === 'student') return <Navigate to="/aluno" replace />;
+    if (role === 'trainer') return <Navigate to="/dashboard" replace />;
+    // role is null — don't redirect, stay on login
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setBlocked(false);
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        // Sign in
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate('/');
+
+        // Check profile role
+        const userId = data.user.id;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .single();
+
+        if (profile?.role === 'trainer') {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+        if (profile?.role === 'student') {
+          navigate('/aluno', { replace: true });
+          return;
+        }
+
+        // No profile or role null — check allowlist
+        const { data: allowed } = await supabase.rpc('check_email_allowed', {
+          check_email: email,
+        });
+
+        if (allowed) {
+          // Create/update profile as student
+          await supabase.from('profiles').upsert({
+            id: userId,
+            role: 'student',
+            name: data.user.user_metadata?.name || '',
+          });
+          navigate('/aluno', { replace: true });
+        } else {
+          // Not allowed — sign out and block
+          await supabase.auth.signOut();
+          setBlocked(true);
+        }
       } else {
+        // Sign up — check allowlist first
+        const { data: allowed } = await supabase.rpc('check_email_allowed', {
+          check_email: email,
+        });
+
+        if (!allowed) {
+          setBlocked(true);
+          return;
+        }
+
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { name } },
+          options: { data: { name, role: 'student' } },
         });
         if (error) throw error;
         toast({
@@ -69,10 +118,24 @@ const Auth = () => {
           </p>
         </div>
 
+        {blocked && (
+          <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Acesso não autorizado
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Seu e-mail não foi convidado pelo treinador. Entre em contato com seu treinador para receber um convite.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="bg-card border border-border rounded-xl p-6 space-y-6">
           <div className="flex rounded-lg bg-secondary p-1">
             <button
-              onClick={() => setIsLogin(true)}
+              onClick={() => { setIsLogin(true); setBlocked(false); }}
               className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
                 isLogin ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -80,7 +143,7 @@ const Auth = () => {
               Entrar
             </button>
             <button
-              onClick={() => setIsLogin(false)}
+              onClick={() => { setIsLogin(false); setBlocked(false); }}
               className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
                 !isLogin ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
