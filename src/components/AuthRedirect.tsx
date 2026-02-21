@@ -2,8 +2,8 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { session, loading } = useAuth();
+const AuthRedirect = () => {
+  const { session, role, loading } = useAuth();
 
   if (loading) {
     return (
@@ -17,7 +17,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  if (role === 'student') {
+    return <Navigate to="/student" replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
 };
 
-export default ProtectedRoute;
+export default AuthRedirect;
