@@ -97,16 +97,10 @@ const StudentsModule = () => {
     },
     onSuccess: (data) => {
       invalidate();
-      if (data?.link) {
-        // Copy link to clipboard
-        navigator.clipboard.writeText(data.link).catch(() => {});
-        toast({ 
-          title: 'Link de convite gerado!', 
-          description: 'O link foi copiado para a área de transferência. Envie ao aluno.',
-        });
-      } else {
-        toast({ title: 'Convite processado com sucesso!' });
-      }
+      toast({ 
+        title: 'Convite enviado!', 
+        description: data?.message || 'O aluno receberá um e-mail com o link de acesso.',
+      });
     },
     onError: (e: any) => toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' }),
   });

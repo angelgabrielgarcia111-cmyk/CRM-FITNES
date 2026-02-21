@@ -19,17 +19,18 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return json({ ok: false, message: 'Missing authorization' }, 401)
+      return json({ ok: false, message: 'Autorização ausente' }, 401)
     }
 
     const { student_id, email } = await req.json()
     console.log('[invite-student] input:', { student_id, email })
 
     if (!student_id || !email) {
-      return json({ ok: false, message: 'student_id and email are required' }, 400)
+      return json({ ok: false, message: 'student_id e email são obrigatórios' }, 400)
     }
 
     // Verify trainer via anon client + RLS
@@ -39,7 +40,7 @@ Deno.serve(async (req) => {
 
     const { data: { user: trainerUser }, error: authError } = await userClient.auth.getUser()
     if (authError || !trainerUser) {
-      return json({ ok: false, message: 'Unauthorized' }, 401)
+      return json({ ok: false, message: 'Não autorizado' }, 401)
     }
 
     // Check trainer role
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (!profile || profile.role !== 'trainer') {
-      return json({ ok: false, message: 'Forbidden: only trainers can invite' }, 403)
+      return json({ ok: false, message: 'Apenas treinadores podem convidar' }, 403)
     }
 
     // Verify student belongs to trainer (RLS enforces this)
@@ -68,18 +69,29 @@ Deno.serve(async (req) => {
       return json({ ok: false, message: 'Aluno já possui conta vinculada' }, 400)
     }
 
-    // Build the signup link — no Supabase invite API needed
+    // Use service role client to invite user by email
+    const adminClient = createClient(supabaseUrl, serviceRoleKey)
+
     const siteUrl = Deno.env.get('SITE_URL') || 'https://code-restorer-joy.lovable.app'
-    const signupLink = `${siteUrl}/student/complete-signup?email=${encodeURIComponent(email)}`
+    const redirectTo = `${siteUrl}/student/complete?student_id=${student_id}&email=${encodeURIComponent(email)}`
 
-    console.log('[invite-student] signup link:', signupLink)
+    console.log('[invite-student] redirectTo:', redirectTo)
 
-    // TODO: Send email via Resend or another provider with signupLink
-    // For now, return the link so the trainer can share it manually
-    return json({ ok: true, mode: 'link_generated', link: signupLink })
+    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
+      data: { role: 'student', student_id },
+    })
+
+    if (inviteError) {
+      console.error('[invite-student] inviteError:', inviteError)
+      return json({ ok: false, message: inviteError.message }, 400)
+    }
+
+    console.log('[invite-student] invite sent successfully for:', email)
+    return json({ ok: true, message: 'Convite enviado com sucesso!' })
 
   } catch (err: any) {
     console.error('[invite-student] unexpected:', err)
-    return json({ ok: false, message: err?.message || 'Unknown error' }, 400)
+    return json({ ok: false, message: err?.message || 'Erro desconhecido' }, 400)
   }
 })
