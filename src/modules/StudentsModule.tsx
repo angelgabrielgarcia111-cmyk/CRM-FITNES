@@ -97,10 +97,15 @@ const StudentsModule = () => {
     },
     onSuccess: (data) => {
       invalidate();
-      if (data?.mode === 'linked_existing') {
-        toast({ title: 'Aluno já tinha conta — vinculado com sucesso' });
+      if (data?.link) {
+        // Copy link to clipboard
+        navigator.clipboard.writeText(data.link).catch(() => {});
+        toast({ 
+          title: 'Link de convite gerado!', 
+          description: 'O link foi copiado para a área de transferência. Envie ao aluno.',
+        });
       } else {
-        toast({ title: 'Convite enviado com sucesso!' });
+        toast({ title: 'Convite processado com sucesso!' });
       }
     },
     onError: (e: any) => toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' }),
