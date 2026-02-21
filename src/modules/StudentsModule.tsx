@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Eye, CalendarPlus, AlertCircle, Search, Pencil, Trash2, TrendingUp, Clock, UserPlus, Loader2 } from 'lucide-react';
+import { Users, Eye, CalendarPlus, AlertCircle, Search, Pencil, Trash2, TrendingUp, Clock, UserPlus, Loader2, Send, CheckCircle2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import StudentFormDialog from '@/components/StudentFormDialog';
 import DeleteStudentDialog from '@/components/DeleteStudentDialog';
@@ -86,6 +86,18 @@ const StudentsModule = () => {
     onError: (e: any) => toast({ title: 'Erro ao excluir', description: e.message, variant: 'destructive' }),
   });
 
+  const inviteMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      const { data, error } = await supabase.functions.invoke('invite-student', {
+        body: { student_id: studentId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => { invalidate(); toast({ title: 'Convite enviado com sucesso!' }); },
+    onError: (e: any) => toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' }),
+  });
+
   const handleFormSubmit = (data: any) => {
     if (editingStudent) {
       updateMutation.mutate({ id: editingStudent.id, data });
@@ -155,6 +167,7 @@ const StudentsModule = () => {
                 <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-4">Plano</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-4">Modalidade</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-4">Vencimento</th>
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-4">Conta</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-4">Ações</th>
               </tr>
             </thead>
@@ -162,14 +175,14 @@ const StudentsModule = () => {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50">
-                    {Array.from({ length: 7 }).map((_, j) => (
+                    {Array.from({ length: 8 }).map((_, j) => (
                       <td key={j} className="px-5 py-4"><Skeleton className="h-5 w-20" /></td>
                     ))}
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">
                     {students.length === 0 ? (
                       <div className="space-y-2">
                         <Users size={40} className="mx-auto text-muted-foreground/40" />
@@ -207,6 +220,24 @@ const StudentsModule = () => {
                           {s.due_date}
                         </div>
                       ) : '—'}
+                    </td>
+                    <td className="px-5 py-4">
+                      {s.user_id ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success bg-success/20 px-2.5 py-1 rounded">
+                          <CheckCircle2 size={12} />
+                          Conta ativa
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => inviteMutation.mutate(s.id)}
+                          disabled={!s.email || inviteMutation.isPending}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={!s.email ? 'Cadastre um email primeiro' : 'Enviar convite'}
+                        >
+                          {inviteMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                          Convidar
+                        </button>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
