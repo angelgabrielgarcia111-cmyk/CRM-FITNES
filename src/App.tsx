@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import StudentDashboard from "./pages/StudentDashboard";
 import CompleteSignup from "./pages/CompleteSignup";
+import StudentComplete from "./pages/StudentComplete";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/dashboard" element={<RoleRoute allowedRole="trainer"><Index /></RoleRoute>} />
             <Route path="/student" element={<RoleRoute allowedRole="student"><StudentDashboard /></RoleRoute>} />
             <Route path="/student/complete-signup" element={<CompleteSignup />} />
+            <Route path="/student/complete" element={<StudentComplete />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
