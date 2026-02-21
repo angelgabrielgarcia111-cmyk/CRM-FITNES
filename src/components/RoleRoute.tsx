@@ -9,6 +9,7 @@ interface RoleRouteProps {
 
 const RoleRoute = ({ children, allowedRole }: RoleRouteProps) => {
   const { session, role, loading } = useAuth();
+  console.log('[RoleRoute]', { allowedRole, role, loading, hasSession: !!session });
 
   if (loading) {
     return (
