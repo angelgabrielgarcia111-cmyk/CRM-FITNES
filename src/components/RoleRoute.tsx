@@ -29,7 +29,7 @@ const RoleRoute = ({ children, allowedRole }: RoleRouteProps) => {
   }
 
   if (role !== allowedRole) {
-    const redirect = role === 'trainer' ? '/dashboard' : '/aluno';
+    const redirect = role === 'trainer' ? '/dashboard' : '/student';
     return <Navigate to={redirect} replace />;
   }
 

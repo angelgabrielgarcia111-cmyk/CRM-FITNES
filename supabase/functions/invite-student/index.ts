@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
     // Determine redirect URL
     const siteUrl = Deno.env.get('SITE_URL') || 'https://code-restorer-joy.lovable.app'
-    const redirectTo = `${siteUrl}/aluno/aceitar-convite`
+    const redirectTo = `${siteUrl}/student/complete-signup?email=${encodeURIComponent(email)}`
 
     // Try invite
     console.log('[invite-student] inviting:', email, 'redirectTo:', redirectTo)

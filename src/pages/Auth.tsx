@@ -22,7 +22,7 @@ const Auth = () => {
   const { session, role, loading: authLoading } = useAuth();
 
   if (session && !authLoading) {
-    if (role === 'student') return <Navigate to="/aluno" replace />;
+    if (role === 'student') return <Navigate to="/student" replace />;
     if (role === 'trainer') return <Navigate to="/dashboard" replace />;
     // role is null — don't redirect, stay on login
   }
@@ -51,7 +51,7 @@ const Auth = () => {
           return;
         }
         if (profile?.role === 'student') {
-          navigate('/aluno', { replace: true });
+          navigate('/student', { replace: true });
           return;
         }
 
@@ -67,7 +67,7 @@ const Auth = () => {
             role: 'student',
             name: data.user.user_metadata?.name || '',
           });
-          navigate('/aluno', { replace: true });
+          navigate('/student', { replace: true });
         } else {
           // Not allowed — sign out and block
           await supabase.auth.signOut();

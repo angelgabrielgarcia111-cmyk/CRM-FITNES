@@ -9,7 +9,7 @@ import AuthRedirect from "@/components/AuthRedirect";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import StudentDashboard from "./pages/StudentDashboard";
-import AcceptInvite from "./pages/AcceptInvite";
+import CompleteSignup from "./pages/CompleteSignup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,8 +25,8 @@ const App = () => (
             <Route path="/login" element={<Auth />} />
             <Route path="/" element={<AuthRedirect />} />
             <Route path="/dashboard" element={<RoleRoute allowedRole="trainer"><Index /></RoleRoute>} />
-            <Route path="/aluno" element={<RoleRoute allowedRole="student"><StudentDashboard /></RoleRoute>} />
-            <Route path="/aluno/aceitar-convite" element={<AcceptInvite />} />
+            <Route path="/student" element={<RoleRoute allowedRole="student"><StudentDashboard /></RoleRoute>} />
+            <Route path="/student/complete-signup" element={<CompleteSignup />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
