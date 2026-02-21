@@ -29,6 +29,7 @@ const StudentsModule = () => {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ['students'],
@@ -86,24 +87,24 @@ const StudentsModule = () => {
     onError: (e: any) => toast({ title: 'Erro ao excluir', description: e.message, variant: 'destructive' }),
   });
 
-  const inviteMutation = useMutation({
-    mutationFn: async (student: Student) => {
+  const handleInvite = async (studentId: string, email: string) => {
+    if (invitingId) return;
+    setInvitingId(studentId);
+    console.log('[invite] sending for single student:', { studentId, email });
+    try {
       const { data, error } = await supabase.functions.invoke('invite-student', {
-        body: { student_id: student.id, email: student.email },
+        body: { student_id: studentId, email },
       });
       if (error) throw error;
       if (data && !data.ok) throw new Error(data.message || 'Erro desconhecido');
-      return data;
-    },
-    onSuccess: (data) => {
       invalidate();
-      toast({ 
-        title: 'Convite enviado!', 
-        description: data?.message || 'O aluno receberá um e-mail com o link de acesso.',
-      });
-    },
-    onError: (e: any) => toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' }),
-  });
+      toast({ title: 'Convite enviado!', description: `Convite enviado para ${email}` });
+    } catch (e: any) {
+      toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' });
+    } finally {
+      setInvitingId(null);
+    }
+  };
 
   const handleFormSubmit = (data: any) => {
     if (editingStudent) {
@@ -236,13 +237,13 @@ const StudentsModule = () => {
                         </span>
                       ) : (
                         <button
-                          onClick={() => inviteMutation.mutate(s)}
-                          disabled={!s.email || inviteMutation.isPending}
+                          onClick={(e) => { e.stopPropagation(); handleInvite(s.id, s.email!); }}
+                          disabled={!s.email || invitingId === s.id}
                           className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title={!s.email ? 'Cadastre um email primeiro' : 'Enviar convite'}
                         >
-                          {inviteMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                          Convidar
+                          {invitingId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                          {invitingId === s.id ? 'Enviando…' : 'Convidar'}
                         </button>
                       )}
                     </td>
