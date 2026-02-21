@@ -78,11 +78,15 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
+    // Determine redirect URL
+    const siteUrl = Deno.env.get('SITE_URL') || 'https://code-restorer-joy.lovable.app'
+    const redirectTo = `${siteUrl}/student/accept-invite`
+
     // Try invite
-    console.log('[invite-student] inviting:', email)
+    console.log('[invite-student] inviting:', email, 'redirectTo:', redirectTo)
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       email,
-      { data: { role: 'student', student_id } }
+      { data: { role: 'student', student_id }, redirectTo }
     )
 
     if (!inviteError) {
