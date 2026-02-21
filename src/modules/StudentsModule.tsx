@@ -1,22 +1,103 @@
-import React, { useState } from 'react';
-import { Users, Eye, CalendarPlus, AlertCircle, Search, Pencil, Monitor, Trash2, TrendingUp, Clock, UserPlus } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { Users, Eye, CalendarPlus, AlertCircle, Search, Pencil, Trash2, TrendingUp, Clock, UserPlus, Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import StudentFormDialog from '@/components/StudentFormDialog';
+import DeleteStudentDialog from '@/components/DeleteStudentDialog';
+import type { Tables } from '@/integrations/supabase/types';
 
-const students = [
-  { name: 'Ana Silva', initials: 'A', email: 'ana.silva@email.com', plan: 'Plano Mensal', modality: 'Presencial', status: 'ATIVO', expiry: '2024-02-15' },
-  { name: 'Carlos Santos', initials: 'C', email: 'carlos.santos@email.com', plan: 'Plano Trimestral', modality: 'Online', status: 'ATIVO', expiry: '2024-03-20' },
-  { name: 'Maria Costa', initials: 'M', email: 'maria.costa@email.com', plan: 'Plano Mensal', modality: 'Híbrido', status: 'INATIVO', expiry: '2024-01-10' },
-  { name: 'João Oliveira', initials: 'J', email: 'joao.oliveira@email.com', plan: 'Plano Semestral', modality: 'Presencial', status: 'PENDENTE', expiry: '2024-04-15' },
-];
+type Student = Tables<'students'>;
 
+const statusLabels: Record<string, string> = { active: 'ATIVO', inactive: 'INATIVO', pending: 'PENDENTE' };
 const statusColors: Record<string, string> = {
-  ATIVO: 'bg-success/20 text-success',
-  INATIVO: 'bg-destructive/20 text-destructive',
-  PENDENTE: 'bg-warning/20 text-warning',
+  active: 'bg-success/20 text-success',
+  inactive: 'bg-destructive/20 text-destructive',
+  pending: 'bg-warning/20 text-warning',
 };
 
-const StudentsModule: React.FC = () => {
+const StudentsModule = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const [searchName, setSearchName] = useState('');
   const [searchEmail, setSearchEmail] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  const [mutating, setMutating] = useState(false);
+
+  const { data: students = [], isLoading } = useQuery({
+    queryKey: ['students'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Student[];
+    },
+  });
+
+  const filtered = useMemo(() => {
+    return students.filter((s) => {
+      const matchName = !searchName || s.name.toLowerCase().includes(searchName.toLowerCase());
+      const matchEmail = !searchEmail || (s.email || '').toLowerCase().includes(searchEmail.toLowerCase());
+      return matchName && matchEmail;
+    });
+  }, [students, searchName, searchEmail]);
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const totalStudents = students.length;
+  const activeStudents = students.filter((s) => s.status === 'active').length;
+  const newThisMonth = students.filter((s) => new Date(s.created_at) >= startOfMonth).length;
+  const pendingStudents = students.filter((s) => s.status === 'pending').length;
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['students'] });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase.from('students').insert({ ...data, trainer_id: user!.id });
+      if (error) throw error;
+    },
+    onSuccess: () => { invalidate(); setFormOpen(false); toast({ title: 'Aluno adicionado com sucesso!' }); },
+    onError: (e: any) => toast({ title: 'Erro ao adicionar', description: e.message, variant: 'destructive' }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const { error } = await supabase.from('students').update(data).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { invalidate(); setFormOpen(false); setEditingStudent(null); toast({ title: 'Aluno atualizado!' }); },
+    onError: (e: any) => toast({ title: 'Erro ao atualizar', description: e.message, variant: 'destructive' }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('students').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { invalidate(); setDeleteTarget(null); toast({ title: 'Aluno excluído!' }); },
+    onError: (e: any) => toast({ title: 'Erro ao excluir', description: e.message, variant: 'destructive' }),
+  });
+
+  const handleFormSubmit = (data: any) => {
+    if (editingStudent) {
+      updateMutation.mutate({ id: editingStudent.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const openEdit = (s: Student) => { setEditingStudent(s); setFormOpen(true); };
+  const openCreate = () => { setEditingStudent(null); setFormOpen(true); };
+
+  const isMutating = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -26,7 +107,7 @@ const StudentsModule: React.FC = () => {
           <h1 className="text-2xl font-bold text-foreground">Gestão de Alunos</h1>
           <p className="text-muted-foreground text-sm mt-1">Gerencie todos os seus alunos em um só lugar</p>
         </div>
-        <button className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+        <button onClick={openCreate} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
           <UserPlus size={16} />
           Adicionar Aluno
         </button>
@@ -34,129 +115,31 @@ const StudentsModule: React.FC = () => {
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">Total de Alunos</p>
-              <h3 className="text-3xl font-bold text-foreground mt-1">248</h3>
-            </div>
-            <div className="p-2.5 rounded-lg bg-primary/10">
-              <Users size={20} className="text-primary" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 mt-3 text-xs text-success">
-            <TrendingUp size={14} />
-            <span>+12 este mês</span>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-5">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">Alunos Ativos</p>
-              <h3 className="text-3xl font-bold text-foreground mt-1">192</h3>
-            </div>
-            <div className="p-2.5 rounded-lg bg-primary/10">
-              <Eye size={20} className="text-primary" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 mt-3 text-xs text-success">
-            <TrendingUp size={14} />
-            <span>77% do total</span>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-5">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">Novos Este Mês</p>
-              <h3 className="text-3xl font-bold text-foreground mt-1">24</h3>
-            </div>
-            <div className="p-2.5 rounded-lg bg-primary/10">
-              <CalendarPlus size={20} className="text-primary" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 mt-3 text-xs text-success">
-            <TrendingUp size={14} />
-            <span>+18% vs. anterior</span>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-5">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">Pendentes</p>
-              <h3 className="text-3xl font-bold text-foreground mt-1">8</h3>
-            </div>
-            <div className="p-2.5 rounded-lg bg-warning/10">
-              <AlertCircle size={20} className="text-warning" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 mt-3 text-xs text-warning">
-            <Clock size={14} />
-            <span>Requer atenção</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Status indicators */}
-      <div className="flex items-center gap-6 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full border-2 border-muted-foreground/40" />
-          <span>NENHUM PENDENTE</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full border-2 border-muted-foreground/40" />
-          <span>NENHUM ENTREGUE</span>
-        </div>
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
+        ) : (
+          <>
+            <MetricCard label="Total de Alunos" value={totalStudents} icon={Users} sub={`+${newThisMonth} este mês`} subIcon={TrendingUp} subColor="text-success" />
+            <MetricCard label="Alunos Ativos" value={activeStudents} icon={Eye} sub={totalStudents ? `${Math.round((activeStudents / totalStudents) * 100)}% do total` : '0%'} subIcon={TrendingUp} subColor="text-success" />
+            <MetricCard label="Novos Este Mês" value={newThisMonth} icon={CalendarPlus} sub="este mês" subIcon={TrendingUp} subColor="text-success" />
+            <MetricCard label="Pendentes" value={pendingStudents} icon={AlertCircle} sub="Requer atenção" subIcon={Clock} subColor="text-warning" iconBg="bg-warning/10" iconColor="text-warning" />
+          </>
+        )}
       </div>
 
       {/* Filters */}
-      <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-card border border-border rounded-xl p-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar por nome"
-              value={searchName}
-              onChange={(e) => setSearchName(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+            <input type="text" placeholder="Buscar por nome" value={searchName} onChange={(e) => setSearchName(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar por e-mail"
-              value={searchEmail}
-              onChange={(e) => setSearchEmail(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+            <input type="text" placeholder="Buscar por e-mail" value={searchEmail} onChange={(e) => setSearchEmail(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
-          <select className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option>Todos os planos</option>
-          </select>
-          <select className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option>Todas modalidades</option>
-          </select>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <select className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option>Todos status</option>
-          </select>
-          <select className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option>Todos objetivos</option>
-          </select>
-          <select className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option>Todas avaliações</option>
-          </select>
-          <select className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-            <option>Mais Recente</option>
-          </select>
-        </div>
-        <div className="flex justify-end">
-          <button className="text-xs text-primary hover:underline">Limpar filtros</button>
         </div>
       </div>
 
@@ -176,51 +159,108 @@ const StudentsModule: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {students.map((s) => (
-                <tr key={s.email} className="border-b border-border/50 last:border-0 hover:bg-muted/5 transition-colors">
-                  <td className="px-5 py-4">
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded ${statusColors[s.status]}`}>
-                      {s.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
-                        {s.initials}
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/50">
+                    {Array.from({ length: 7 }).map((_, j) => (
+                      <td key={j} className="px-5 py-4"><Skeleton className="h-5 w-20" /></td>
+                    ))}
+                  </tr>
+                ))
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">
+                    {students.length === 0 ? (
+                      <div className="space-y-2">
+                        <Users size={40} className="mx-auto text-muted-foreground/40" />
+                        <p className="font-medium">Nenhum aluno cadastrado</p>
+                        <p className="text-sm">Clique em "Adicionar Aluno" para começar.</p>
                       </div>
-                      <span className="text-sm font-medium text-foreground">{s.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-muted-foreground">{s.email}</td>
-                  <td className="px-5 py-4 text-sm text-muted-foreground">{s.plan}</td>
-                  <td className="px-5 py-4 text-sm text-muted-foreground">{s.modality}</td>
-                  <td className="px-5 py-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <CalendarPlus size={14} />
-                      {s.expiry}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <button className="p-1.5 rounded hover:bg-muted/20 text-muted-foreground hover:text-foreground transition-colors">
-                        <Pencil size={15} />
-                      </button>
-                      <button className="p-1.5 rounded hover:bg-muted/20 text-muted-foreground hover:text-foreground transition-colors">
-                        <Monitor size={15} />
-                      </button>
-                      <button className="p-1.5 rounded hover:bg-muted/20 text-muted-foreground hover:text-destructive transition-colors">
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                    ) : (
+                      'Nenhum resultado encontrado.'
+                    )}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filtered.map((s) => (
+                  <tr key={s.id} className="border-b border-border/50 last:border-0 hover:bg-muted/5 transition-colors">
+                    <td className="px-5 py-4">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded ${statusColors[s.status] || 'bg-muted text-muted-foreground'}`}>
+                        {statusLabels[s.status] || s.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
+                          {s.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-medium text-foreground">{s.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-muted-foreground">{s.email || '—'}</td>
+                    <td className="px-5 py-4 text-sm text-muted-foreground">{s.plan || '—'}</td>
+                    <td className="px-5 py-4 text-sm text-muted-foreground">{s.modality || '—'}</td>
+                    <td className="px-5 py-4 text-sm text-muted-foreground">
+                      {s.due_date ? (
+                        <div className="flex items-center gap-1.5">
+                          <CalendarPlus size={14} />
+                          {s.due_date}
+                        </div>
+                      ) : '—'}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openEdit(s)} className="p-1.5 rounded hover:bg-muted/20 text-muted-foreground hover:text-foreground transition-colors">
+                          <Pencil size={15} />
+                        </button>
+                        <button onClick={() => setDeleteTarget(s)} className="p-1.5 rounded hover:bg-muted/20 text-muted-foreground hover:text-destructive transition-colors">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      <StudentFormDialog
+        open={formOpen}
+        onOpenChange={(open) => { setFormOpen(open); if (!open) setEditingStudent(null); }}
+        student={editingStudent}
+        onSubmit={handleFormSubmit}
+        loading={isMutating}
+      />
+
+      <DeleteStudentDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        studentName={deleteTarget?.name || ''}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 };
+
+const MetricCard = ({ label, value, icon: Icon, sub, subIcon: SubIcon, subColor, iconBg = 'bg-primary/10', iconColor = 'text-primary' }: any) => (
+  <div className="bg-card border border-border rounded-xl p-5">
+    <div className="flex justify-between items-start">
+      <div>
+        <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">{label}</p>
+        <h3 className="text-3xl font-bold text-foreground mt-1">{value}</h3>
+      </div>
+      <div className={`p-2.5 rounded-lg ${iconBg}`}>
+        <Icon size={20} className={iconColor} />
+      </div>
+    </div>
+    <div className={`flex items-center gap-1.5 mt-3 text-xs ${subColor}`}>
+      <SubIcon size={14} />
+      <span>{sub}</span>
+    </div>
+  </div>
+);
 
 export default StudentsModule;
