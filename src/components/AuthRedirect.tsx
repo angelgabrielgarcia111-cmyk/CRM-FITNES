@@ -19,7 +19,7 @@ const AuthRedirect = () => {
   }
 
   if (role === 'student') {
-    return <Navigate to="/aluno" replace />;
+    return <Navigate to="/student" replace />;
   }
 
   if (role === 'trainer') {
