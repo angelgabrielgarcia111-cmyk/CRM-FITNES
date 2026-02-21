@@ -7,17 +7,17 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const anonKey = Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization' }), {
+      return new Response(JSON.stringify({ ok: false, message: 'Missing authorization' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -28,9 +28,10 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     })
 
-    const { data: { user } } = await userClient.auth.getUser()
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    const { data: { user }, error: userError } = await userClient.auth.getUser()
+    if (userError || !user) {
+      console.error('Auth error:', userError)
+      return new Response(JSON.stringify({ ok: false, message: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
 
     const { student_id } = await req.json()
     if (!student_id) {
-      return new Response(JSON.stringify({ error: 'student_id is required' }), {
+      return new Response(JSON.stringify({ ok: false, message: 'student_id is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -52,30 +53,35 @@ Deno.serve(async (req) => {
       .single()
 
     if (fetchError || !student) {
-      return new Response(JSON.stringify({ error: 'Aluno não encontrado' }), {
+      console.error('Fetch student error:', fetchError)
+      return new Response(JSON.stringify({ ok: false, message: 'Aluno não encontrado' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     if (student.user_id) {
-      return new Response(JSON.stringify({ error: 'Aluno já possui conta vinculada' }), {
+      return new Response(JSON.stringify({ ok: false, message: 'Aluno já possui conta vinculada' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     if (!student.email) {
-      return new Response(JSON.stringify({ error: 'Aluno não possui email cadastrado' }), {
+      return new Response(JSON.stringify({ ok: false, message: 'Aluno não possui email cadastrado' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // Admin client to send invite
-    const adminClient = createClient(supabaseUrl, serviceKey)
+    // Admin client with service role key for invite
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
-    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+    console.log('Sending invite to:', student.email)
+
+    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       student.email,
       {
         data: {
@@ -86,13 +92,22 @@ Deno.serve(async (req) => {
       }
     )
 
-    if (inviteError) throw inviteError
+    if (inviteError) {
+      console.error('Invite error:', inviteError)
+      return new Response(JSON.stringify({ ok: false, message: inviteError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
-    return new Response(JSON.stringify({ success: true }), {
+    console.log('Invite sent successfully:', inviteData)
+
+    return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error('Unexpected error:', err)
+    return new Response(JSON.stringify({ ok: false, message: err?.message || 'Unknown error', details: String(err) }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

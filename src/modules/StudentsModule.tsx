@@ -92,7 +92,7 @@ const StudentsModule = () => {
         body: { student_id: studentId },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (data && !data.ok) throw new Error(data.message || 'Erro desconhecido');
     },
     onSuccess: () => { invalidate(); toast({ title: 'Convite enviado com sucesso!' }); },
     onError: (e: any) => toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' }),
