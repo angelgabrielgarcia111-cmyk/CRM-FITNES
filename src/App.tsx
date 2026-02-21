@@ -25,8 +25,8 @@ const App = () => (
             <Route path="/login" element={<Auth />} />
             <Route path="/" element={<AuthRedirect />} />
             <Route path="/dashboard" element={<RoleRoute allowedRole="trainer"><Index /></RoleRoute>} />
-            <Route path="/student" element={<RoleRoute allowedRole="student"><StudentDashboard /></RoleRoute>} />
-            <Route path="/student/accept-invite" element={<AcceptInvite />} />
+            <Route path="/aluno" element={<RoleRoute allowedRole="student"><StudentDashboard /></RoleRoute>} />
+            <Route path="/aluno/aceitar-convite" element={<AcceptInvite />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
