@@ -160,6 +160,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_email_allowed: { Args: { check_email: string }; Returns: boolean }
       link_student_user: { Args: never; Returns: Json }
     }
     Enums: {
