@@ -15,11 +15,15 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { session } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  if (session) return <Navigate to="/" replace />;
+  const { session, role, loading: authLoading } = useAuth();
+
+  if (session && !authLoading) {
+    const target = role === 'student' ? '/student' : '/dashboard';
+    return <Navigate to={target} replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
