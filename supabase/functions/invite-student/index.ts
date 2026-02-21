@@ -17,16 +17,36 @@ Deno.serve(async (req) => {
     })
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    console.log('[invite-student] env check:', {
+      hasUrl: !!supabaseUrl,
+      hasAnon: !!anonKey,
+      hasServiceRole: !!serviceRoleKey,
+    })
+
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+      return json({ ok: false, message: 'Configuração do servidor incompleta (variáveis de ambiente ausentes)' }, 500)
+    }
 
     const authHeader = req.headers.get('Authorization')
+    console.log('[invite-student] hasAuth:', !!authHeader)
+
     if (!authHeader) {
       return json({ ok: false, message: 'Autorização ausente' }, 401)
     }
 
-    const { student_id, email } = await req.json()
+    let body: Record<string, unknown> = {}
+    try {
+      body = await req.json()
+    } catch {
+      return json({ ok: false, message: 'Body JSON inválido' }, 400)
+    }
+
+    const student_id = body.student_id as string
+    const email = body.email as string
     console.log('[invite-student] input:', { student_id, email })
 
     if (!student_id || !email) {
@@ -40,7 +60,8 @@ Deno.serve(async (req) => {
 
     const { data: { user: trainerUser }, error: authError } = await userClient.auth.getUser()
     if (authError || !trainerUser) {
-      return json({ ok: false, message: 'Não autorizado' }, 401)
+      console.error('[invite-student] authError:', authError)
+      return json({ ok: false, message: 'Token inválido ou expirado' }, 401)
     }
 
     // Check trainer role
@@ -62,6 +83,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (fetchError || !student) {
+      console.error('[invite-student] fetchError:', fetchError)
       return json({ ok: false, message: 'Aluno não encontrado' }, 404)
     }
 
@@ -91,7 +113,7 @@ Deno.serve(async (req) => {
     return json({ ok: true, message: 'Convite enviado com sucesso!' })
 
   } catch (err: any) {
-    console.error('[invite-student] unexpected:', err)
-    return json({ ok: false, message: err?.message || 'Erro desconhecido' }, 400)
+    console.error('[invite-student] unexpected error:', err?.message, err?.stack)
+    return json({ ok: false, message: err?.message || 'Erro interno do servidor' }, 500)
   }
 })
