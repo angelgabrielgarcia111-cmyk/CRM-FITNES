@@ -10,6 +10,12 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const json = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -17,99 +23,129 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ ok: false, message: 'Missing authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json({ ok: false, message: 'Missing authorization' }, 401)
     }
 
-    // User client to verify trainer ownership via RLS
+    // Parse body
+    const { student_id, email } = await req.json()
+    console.log('[invite-student] input:', { student_id, email })
+
+    if (!student_id || !email) {
+      return json({ ok: false, message: 'student_id and email are required' }, 400)
+    }
+
+    // Verify trainer via anon client + RLS
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     })
 
-    const { data: { user }, error: userError } = await userClient.auth.getUser()
-    if (userError || !user) {
-      console.error('Auth error:', userError)
-      return new Response(JSON.stringify({ ok: false, message: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const { data: { user: trainerUser }, error: authError } = await userClient.auth.getUser()
+    if (authError || !trainerUser) {
+      console.error('[invite-student] auth error:', authError)
+      return json({ ok: false, message: 'Unauthorized' }, 401)
+    }
+    console.log('[invite-student] trainer:', trainerUser.id)
+
+    // Check trainer role
+    const { data: profile } = await userClient
+      .from('profiles')
+      .select('role')
+      .eq('id', trainerUser.id)
+      .single()
+
+    if (!profile || profile.role !== 'trainer') {
+      return json({ ok: false, message: 'Forbidden: only trainers can invite' }, 403)
     }
 
-    const { student_id } = await req.json()
-    if (!student_id) {
-      return new Response(JSON.stringify({ ok: false, message: 'student_id is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // RLS ensures only the trainer's own students are returned
+    // Verify student belongs to trainer (RLS enforces this)
     const { data: student, error: fetchError } = await userClient
       .from('students')
-      .select('id, email, name, user_id')
+      .select('id, email, user_id')
       .eq('id', student_id)
       .single()
 
     if (fetchError || !student) {
-      console.error('Fetch student error:', fetchError)
-      return new Response(JSON.stringify({ ok: false, message: 'Aluno não encontrado' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      console.error('[invite-student] student not found:', fetchError)
+      return json({ ok: false, message: 'Aluno não encontrado' }, 404)
     }
 
     if (student.user_id) {
-      return new Response(JSON.stringify({ ok: false, message: 'Aluno já possui conta vinculada' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json({ ok: false, message: 'Aluno já possui conta vinculada' }, 400)
     }
 
-    if (!student.email) {
-      return new Response(JSON.stringify({ ok: false, message: 'Aluno não possui email cadastrado' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Admin client with service role key for invite
+    // Admin client
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    console.log('Sending invite to:', student.email)
-
+    // Try invite
+    console.log('[invite-student] inviting:', email)
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-      student.email,
-      {
-        data: {
-          role: 'student',
-          student_id: student.id,
-          name: student.name || '',
-        },
-      }
+      email,
+      { data: { role: 'student', student_id } }
     )
 
-    if (inviteError) {
-      console.error('Invite error:', inviteError)
-      return new Response(JSON.stringify({ ok: false, message: inviteError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (!inviteError) {
+      // Invite succeeded
+      const newUserId = inviteData?.user?.id
+      console.log('[invite-student] invite OK, userId:', newUserId)
+      if (newUserId) {
+        const { error: upErr } = await adminClient
+          .from('students')
+          .update({ user_id: newUserId })
+          .eq('id', student_id)
+        if (upErr) console.error('[invite-student] link error:', upErr)
+      }
+      return json({ ok: true, mode: 'invited' })
     }
 
-    console.log('Invite sent successfully:', inviteData)
+    // Invite failed — check if user already exists
+    const msg = inviteError.message || ''
+    console.warn('[invite-student] invite error:', msg)
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  } catch (err) {
-    console.error('Unexpected error:', err)
-    return new Response(JSON.stringify({ ok: false, message: err?.message || 'Unknown error', details: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    const isExisting = /already registered|already exists|already been registered/i.test(msg)
+      || (inviteError as any).status === 400
+      || (inviteError as any).status === 409
+
+    if (!isExisting) {
+      // Genuine error
+      return json({ ok: false, message: msg }, 400)
+    }
+
+    // User already exists — find and link
+    console.log('[invite-student] user exists, searching...')
+    const { data: listData, error: listErr } = await adminClient.auth.admin.listUsers()
+
+    if (listErr) {
+      console.error('[invite-student] listUsers error:', listErr)
+      return json({ ok: false, message: 'Failed to search existing users' }, 400)
+    }
+
+    const existing = (listData?.users ?? []).find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    )
+
+    if (!existing) {
+      console.error('[invite-student] user not found in list')
+      return json({ ok: false, message: 'Usuário já registrado mas não encontrado para vincular' }, 400)
+    }
+
+    console.log('[invite-student] found existing user:', existing.id)
+    const { error: updateErr } = await adminClient
+      .from('students')
+      .update({ user_id: existing.id })
+      .eq('id', student_id)
+
+    if (updateErr) {
+      console.error('[invite-student] link error:', updateErr)
+      return json({ ok: false, message: 'Falha ao vincular usuário existente' }, 400)
+    }
+
+    console.log('[invite-student] linked existing user successfully')
+    return json({ ok: true, mode: 'linked_existing' })
+
+  } catch (err: any) {
+    console.error('[invite-student] unexpected:', err)
+    return json({ ok: false, message: err?.message || 'Unknown error' }, 400)
   }
 })

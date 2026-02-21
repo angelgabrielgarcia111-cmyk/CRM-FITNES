@@ -87,14 +87,22 @@ const StudentsModule = () => {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (studentId: string) => {
+    mutationFn: async (student: Student) => {
       const { data, error } = await supabase.functions.invoke('invite-student', {
-        body: { student_id: studentId },
+        body: { student_id: student.id, email: student.email },
       });
       if (error) throw error;
       if (data && !data.ok) throw new Error(data.message || 'Erro desconhecido');
+      return data;
     },
-    onSuccess: () => { invalidate(); toast({ title: 'Convite enviado com sucesso!' }); },
+    onSuccess: (data) => {
+      invalidate();
+      if (data?.mode === 'linked_existing') {
+        toast({ title: 'Aluno já tinha conta — vinculado com sucesso' });
+      } else {
+        toast({ title: 'Convite enviado com sucesso!' });
+      }
+    },
     onError: (e: any) => toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' }),
   });
 
@@ -229,7 +237,7 @@ const StudentsModule = () => {
                         </span>
                       ) : (
                         <button
-                          onClick={() => inviteMutation.mutate(s.id)}
+                          onClick={() => inviteMutation.mutate(s)}
                           disabled={!s.email || inviteMutation.isPending}
                           className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title={!s.email ? 'Cadastre um email primeiro' : 'Enviar convite'}
