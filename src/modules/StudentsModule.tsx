@@ -92,10 +92,20 @@ const StudentsModule = () => {
     setInvitingId(studentId);
     console.log('[invite] sending for single student:', { studentId, email });
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({ title: 'Sessão expirada', description: 'Faça login novamente.', variant: 'destructive' });
+        return;
+      }
       const { data, error } = await supabase.functions.invoke('invite-student', {
         body: { student_id: studentId, email },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      if (error) throw error;
+      if (error) {
+        // Try to extract real message from error context or data
+        const msg = data?.message || error.message || 'Erro desconhecido';
+        throw new Error(msg);
+      }
       if (data && !data.ok) throw new Error(data.message || 'Erro desconhecido');
       invalidate();
       toast({ title: 'Convite enviado!', description: `Convite enviado para ${email}` });
