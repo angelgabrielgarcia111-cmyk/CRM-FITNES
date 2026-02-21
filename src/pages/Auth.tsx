@@ -21,7 +21,7 @@ const Auth = () => {
   const { session, role, loading: authLoading } = useAuth();
 
   if (session && !authLoading) {
-    const target = role === 'student' ? '/student' : '/dashboard';
+    const target = role === 'student' ? '/aluno' : '/dashboard';
     return <Navigate to={target} replace />;
   }
 

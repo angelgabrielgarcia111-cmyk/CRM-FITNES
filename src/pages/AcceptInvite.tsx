@@ -61,7 +61,7 @@ const AcceptInvite = () => {
           console.log('[accept-invite] student link ok:', result);
           setStep('done');
           // Redirect to student portal after brief success display
-          setTimeout(() => navigate('/student', { replace: true }), 1500);
+          setTimeout(() => navigate('/aluno', { replace: true }), 1500);
         } else {
           setMessage(result?.message || 'Não foi possível vincular a conta.');
           setStep('error');
