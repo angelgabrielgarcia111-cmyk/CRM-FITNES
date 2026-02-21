@@ -1,7 +1,24 @@
 import React from 'react';
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const Topbar: React.FC = () => {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    console.log('[LOGOUT] Session cleared');
+    navigate('/login', { replace: true });
+  };
+
   return (
     <header className="h-20 bg-background border-b border-border flex items-center justify-between px-8 sticky top-0 z-40">
       <div className="flex-1 max-w-md">
@@ -21,17 +38,27 @@ const Topbar: React.FC = () => {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full border-2 border-background"></span>
         </button>
         
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block leading-tight">
-            <p className="text-sm font-bold text-foreground">Personal Trainer</p>
-            <p className="text-[10px] text-muted-foreground">Online</p>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-card border border-border p-0.5 flex items-center justify-center">
-            <div className="w-full h-full rounded-full bg-secondary flex items-center justify-center text-foreground text-xs font-bold overflow-hidden">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar" className="w-full h-full object-cover" />
-            </div>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-3 cursor-pointer">
+              <div className="text-right hidden sm:block leading-tight">
+                <p className="text-sm font-bold text-foreground">Personal Trainer</p>
+                <p className="text-[10px] text-muted-foreground">Online</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-card border border-border p-0.5 flex items-center justify-center">
+                <div className="w-full h-full rounded-full bg-secondary flex items-center justify-center text-foreground text-xs font-bold overflow-hidden">
+                  <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar" className="w-full h-full object-cover" />
+                </div>
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
