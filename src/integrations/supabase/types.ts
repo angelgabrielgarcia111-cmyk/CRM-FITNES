@@ -46,6 +46,7 @@ export type Database = {
           plan: string | null
           status: string
           trainer_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -57,6 +58,7 @@ export type Database = {
           plan?: string | null
           status?: string
           trainer_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -68,6 +70,7 @@ export type Database = {
           plan?: string | null
           status?: string
           trainer_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
