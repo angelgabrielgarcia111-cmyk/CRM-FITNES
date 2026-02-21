@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 const AuthRedirect = () => {
   const { session, role, loading } = useAuth();
+  console.log('[AuthRedirect]', { role, loading, hasSession: !!session });
 
   if (loading) {
     return (
