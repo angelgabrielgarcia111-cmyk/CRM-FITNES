@@ -4,13 +4,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldAlert, Dumbbell, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+type Status = 'loading' | 'no_tokens' | 'unauthorized' | 'linking' | 'error' | 'otp_expired';
+
 const StudentComplete = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const studentId = searchParams.get('student_id') || '';
   const emailParam = searchParams.get('email') || '';
 
-  const [status, setStatus] = useState<'loading' | 'no_tokens' | 'unauthorized' | 'linking' | 'error'>('loading');
+  // Supabase may put errors in query params when the link fails
+  const errorParam = searchParams.get('error') || '';
+  const errorDescParam = searchParams.get('error_description') || '';
+  const errorCodeParam = searchParams.get('error_code') || '';
+
+  // PKCE code
+  const codeParam = searchParams.get('code') || '';
+
+  const [status, setStatus] = useState<Status>('loading');
   const [errorMsg, setErrorMsg] = useState('');
   const processed = useRef(false);
 
@@ -20,20 +30,36 @@ const StudentComplete = () => {
 
     const run = async () => {
       try {
-        // 1) Check for tokens in the URL hash (Supabase invite link puts them there)
-        const hash = window.location.hash;
-        console.log('[StudentComplete] hash:', hash);
+        // 0) Check for Supabase error params (e.g. otp_expired, access_denied)
+        if (errorParam) {
+          console.warn('[StudentComplete] Supabase error in URL:', errorParam, errorCodeParam, errorDescParam);
+          if (errorCodeParam === 'otp_expired' || errorDescParam?.includes('expired')) {
+            setStatus('otp_expired');
+          } else {
+            setErrorMsg(errorDescParam || errorParam);
+            setStatus('error');
+          }
+          return;
+        }
 
-        if (!hash || !hash.includes('access_token')) {
-          // Maybe already has a session (e.g. page refresh after setSession)
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            setStatus('no_tokens');
+        const hash = window.location.hash;
+        console.log('[StudentComplete] hash:', hash, 'code:', codeParam);
+
+        let sessionEstablished = false;
+
+        // A) PKCE flow: ?code=XXX
+        if (codeParam) {
+          const { error: codeError } = await supabase.auth.exchangeCodeForSession(codeParam);
+          if (codeError) {
+            console.error('[StudentComplete] exchangeCodeForSession error:', codeError);
+            setErrorMsg(codeError.message);
+            setStatus('error');
             return;
           }
-          // Has session, continue to link
-        } else {
-          // 2) Extract tokens from hash
+          sessionEstablished = true;
+        }
+        // B) Implicit flow: #access_token=...&refresh_token=...
+        else if (hash && hash.includes('access_token')) {
           const params = new URLSearchParams(hash.substring(1));
           const accessToken = params.get('access_token');
           const refreshToken = params.get('refresh_token');
@@ -43,7 +69,6 @@ const StudentComplete = () => {
             return;
           }
 
-          // 3) Set session
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -55,23 +80,33 @@ const StudentComplete = () => {
             setStatus('error');
             return;
           }
+          sessionEstablished = true;
         }
 
-        // 4) Verify user
+        // C) Maybe already has a session (page refresh)
+        if (!sessionEstablished) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            setStatus('no_tokens');
+            return;
+          }
+        }
+
+        // Verify user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           setStatus('unauthorized');
           return;
         }
 
-        // 5) Validate email matches if provided
+        // Validate email matches if provided
         if (emailParam && user.email?.toLowerCase() !== emailParam.toLowerCase()) {
           console.warn('[StudentComplete] email mismatch:', user.email, emailParam);
           setStatus('unauthorized');
           return;
         }
 
-        // 6) Link student record via RPC
+        // Link student record via RPC
         setStatus('linking');
         const { data: linkResult, error: linkError } = await supabase.rpc('link_student_user');
 
@@ -86,18 +121,16 @@ const StudentComplete = () => {
 
         const result = linkResult as any;
         if (result?.ok && result?.linked) {
-          // Success — redirect to student area
           navigate('/student', { replace: true });
           return;
         }
 
         if (result?.ok && !result?.linked) {
-          // No matching student record
           setStatus('unauthorized');
           return;
         }
 
-        // Fallback — try redirect anyway if session exists
+        // Fallback
         navigate('/student', { replace: true });
 
       } catch (err: any) {
@@ -108,7 +141,7 @@ const StudentComplete = () => {
     };
 
     run();
-  }, [navigate, emailParam, studentId]);
+  }, [navigate, emailParam, studentId, codeParam, errorParam, errorCodeParam, errorDescParam]);
 
   // --- Renders ---
 
@@ -117,16 +150,31 @@ const StudentComplete = () => {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-muted-foreground text-sm">
-          {status === 'linking' ? 'Vinculando sua conta...' : 'Processando convite...'}
+          {status === 'linking' ? 'Vinculando sua conta...' : 'Confirmando convite...'}
         </p>
       </div>
+    );
+  }
+
+  if (status === 'otp_expired') {
+    return (
+      <PageShell>
+        <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto" />
+        <p className="text-foreground font-medium">Link expirado</p>
+        <p className="text-sm text-muted-foreground">
+          O link do convite expirou. Solicite um novo convite ao seu treinador.
+        </p>
+        <Button variant="outline" onClick={() => navigate('/login', { replace: true })} className="w-full">
+          Voltar ao login
+        </Button>
+      </PageShell>
     );
   }
 
   if (status === 'no_tokens') {
     return (
       <PageShell>
-        <AlertTriangle className="h-8 w-8 text-warning mx-auto" />
+        <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto" />
         <p className="text-foreground font-medium">Link inválido ou expirado</p>
         <p className="text-sm text-muted-foreground">
           Solicite um novo convite ao seu treinador.
