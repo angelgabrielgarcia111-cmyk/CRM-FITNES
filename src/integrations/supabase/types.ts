@@ -82,6 +82,51 @@ export type Database = {
           },
         ]
       }
+      trainer_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          id: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       workout_items: {
         Row: {
           exercise_name: string
@@ -160,11 +205,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_trainer_invite: { Args: never; Returns: Json }
       check_email_allowed: { Args: { check_email: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: never; Returns: boolean }
       link_student_user: { Args: never; Returns: Json }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "trainer" | "student"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -291,6 +345,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "trainer", "student"],
+    },
   },
 } as const
