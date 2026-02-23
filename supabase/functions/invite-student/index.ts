@@ -106,6 +106,13 @@ Deno.serve(async (req) => {
 
     if (inviteError) {
       console.error('[invite-student] inviteError:', inviteError)
+
+      // If user already exists, they can just log in — link_student_user will handle re-linking
+      if ((inviteError as any).code === 'email_exists' || inviteError.message?.includes('already been registered')) {
+        console.log('[invite-student] user already exists, returning success')
+        return json({ ok: true, message: 'Aluno já possui conta. Ele pode fazer login diretamente com e-mail e senha.' })
+      }
+
       return json({ ok: false, message: inviteError.message }, 400)
     }
 
