@@ -40,7 +40,10 @@ export type Database = {
           created_at: string
           due_date: string | null
           email: string | null
+          expires_at: string | null
           id: string
+          invite_token_hash: string | null
+          invited_at: string | null
           modality: string | null
           name: string
           plan: string | null
@@ -52,7 +55,10 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           email?: string | null
+          expires_at?: string | null
           id?: string
+          invite_token_hash?: string | null
+          invited_at?: string | null
           modality?: string | null
           name: string
           plan?: string | null
@@ -64,7 +70,10 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           email?: string | null
+          expires_at?: string | null
           id?: string
+          invite_token_hash?: string | null
+          invited_at?: string | null
           modality?: string | null
           name?: string
           plan?: string | null
@@ -215,7 +224,9 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
-      link_student_user: { Args: never; Returns: Json }
+      link_student_user:
+        | { Args: never; Returns: Json }
+        | { Args: { _student_id?: string; _token?: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "trainer" | "student"
