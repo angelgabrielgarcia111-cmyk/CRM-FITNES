@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldAlert, Dumbbell, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-type Status = 'loading' | 'no_tokens' | 'unauthorized' | 'linking' | 'error' | 'otp_expired';
+type Status = 'loading' | 'no_tokens' | 'unauthorized' | 'linking' | 'error' | 'otp_expired' | 'set_password';
 
 const StudentComplete = () => {
   const [searchParams] = useSearchParams();
@@ -22,6 +24,10 @@ const StudentComplete = () => {
 
   const [status, setStatus] = useState<Status>('loading');
   const [errorMsg, setErrorMsg] = useState('');
+  const [password, setPasswordVal] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [studentName, setStudentName] = useState('');
   const processed = useRef(false);
 
   useEffect(() => {
@@ -120,7 +126,16 @@ const StudentComplete = () => {
         console.log('[StudentComplete] link result:', linkResult);
 
         const result = linkResult as any;
-        if (result?.ok && result?.linked) {
+        if (result?.ok && result?.linked && !result?.already_linked) {
+          // Newly linked — show password form
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          setStudentName(currentUser?.user_metadata?.name || '');
+          setStatus('set_password');
+          return;
+        }
+
+        if (result?.ok && result?.linked && result?.already_linked) {
+          // Already set up — go straight to dashboard
           navigate('/student', { replace: true });
           return;
         }
@@ -143,6 +158,30 @@ const StudentComplete = () => {
     run();
   }, [navigate, emailParam, studentId, codeParam, errorParam, errorCodeParam, errorDescParam]);
 
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 6) {
+      setErrorMsg('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('As senhas não coincidem');
+      return;
+    }
+    setSettingPassword(true);
+    setErrorMsg('');
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: { name: studentName || undefined },
+    });
+    if (error) {
+      setErrorMsg(error.message);
+      setSettingPassword(false);
+      return;
+    }
+    navigate('/student', { replace: true });
+  };
+
   // --- Renders ---
 
   if (status === 'loading' || status === 'linking') {
@@ -153,6 +192,59 @@ const StudentComplete = () => {
           {status === 'linking' ? 'Vinculando sua conta...' : 'Confirmando convite...'}
         </p>
       </div>
+    );
+  }
+
+  if (status === 'set_password') {
+    return (
+      <PageShell>
+        <p className="text-foreground font-medium text-lg">Bem-vindo ao Atlon PRO!</p>
+        <p className="text-sm text-muted-foreground">
+          Defina sua senha para acessar sua conta.
+        </p>
+        <form onSubmit={handleSetPassword} className="space-y-4 text-left">
+          <div className="space-y-2">
+            <Label htmlFor="student-name">Nome</Label>
+            <Input
+              id="student-name"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              placeholder="Seu nome"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-password">Senha</Label>
+            <Input
+              id="new-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPasswordVal(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">Confirmar senha</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+            />
+          </div>
+          {errorMsg && (
+            <p className="text-sm text-destructive">{errorMsg}</p>
+          )}
+          <Button type="submit" className="w-full" disabled={settingPassword}>
+            {settingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Criar senha e acessar
+          </Button>
+        </form>
+      </PageShell>
     );
   }
 
