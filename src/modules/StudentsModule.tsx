@@ -3,8 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Eye, CalendarPlus, AlertCircle, Search, Pencil, Trash2, TrendingUp, Clock, UserPlus, Loader2, Send, CheckCircle2 } from 'lucide-react';
+import { Users, Eye, CalendarPlus, AlertCircle, Search, Pencil, Trash2, TrendingUp, Clock, UserPlus, Loader2, Send, CheckCircle2, Copy, Check } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import StudentFormDialog from '@/components/StudentFormDialog';
 import DeleteStudentDialog from '@/components/DeleteStudentDialog';
 import type { Tables } from '@/integrations/supabase/types';
@@ -30,6 +33,8 @@ const StudentsModule = () => {
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [mutating, setMutating] = useState(false);
   const [invitingId, setInvitingId] = useState<string | null>(null);
+  const [inviteLinkModal, setInviteLinkModal] = useState<{ link: string; email: string; emailSent: boolean } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ['students'],
@@ -108,7 +113,15 @@ const StudentsModule = () => {
       }
       if (data && !data.ok) throw new Error(data.message || 'Erro desconhecido');
       invalidate();
-      toast({ title: 'Convite enviado!', description: `Convite enviado para ${email}` });
+
+      // Show modal with link (always), toast only if email sent
+      if (data?.invite_link) {
+        setInviteLinkModal({ link: data.invite_link, email, emailSent: !!data.email_sent });
+        setCopied(false);
+      }
+      if (data?.email_sent) {
+        toast({ title: 'Convite enviado!', description: `Email enviado para ${email}` });
+      }
     } catch (e: any) {
       toast({ title: 'Erro ao enviar convite', description: e.message, variant: 'destructive' });
     } finally {
@@ -290,6 +303,47 @@ const StudentsModule = () => {
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         loading={deleteMutation.isPending}
       />
+
+      {/* Invite Link Modal */}
+      <Dialog open={!!inviteLinkModal} onOpenChange={(open) => { if (!open) setInviteLinkModal(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send size={18} />
+              {inviteLinkModal?.emailSent ? 'Convite enviado!' : 'Link de convite gerado'}
+            </DialogTitle>
+            <DialogDescription>
+              {inviteLinkModal?.emailSent
+                ? `Email enviado para ${inviteLinkModal?.email}. Você também pode compartilhar o link abaixo.`
+                : `O email não pôde ser enviado, mas o link de convite está pronto. Compartilhe com ${inviteLinkModal?.email}:`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                value={inviteLinkModal?.link || ''}
+                readOnly
+                className="text-xs font-mono"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={() => {
+                  if (inviteLinkModal?.link) {
+                    navigator.clipboard.writeText(inviteLinkModal.link);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }
+                }}
+              >
+                {copied ? <Check size={16} className="text-success" /> : <Copy size={16} />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Este link expira em 7 dias.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

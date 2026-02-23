@@ -117,40 +117,49 @@ Deno.serve(async (req) => {
 
     console.log('[invite-student] inviteLink:', inviteLink)
 
-    // Send email via Resend
-    const resendRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Atlon PRO <onboarding@resend.dev>',
-        to: [email],
-        subject: 'Você foi convidado para o Atlon PRO!',
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #333;">Bem-vindo ao Atlon PRO!</h1>
-            <p>Seu treinador convidou você para acessar a plataforma.</p>
-            <p>Clique no botão abaixo para criar sua conta:</p>
-            <a href="${inviteLink}" style="display: inline-block; background-color: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 16px 0;">
-              Criar minha conta
-            </a>
-            <p style="color: #666; font-size: 14px;">Este link expira em 7 dias.</p>
-            <p style="color: #999; font-size: 12px;">Se você não esperava este email, pode ignorá-lo.</p>
-          </div>
-        `,
-      }),
-    })
-
-    if (!resendRes.ok) {
-      const resendError = await resendRes.text()
-      console.error('[invite-student] Resend error:', resendError)
-      return json({ ok: false, message: 'Erro ao enviar email de convite' }, 500)
+    // Try to send email via Resend (non-blocking)
+    let emailSent = false;
+    try {
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Atlon PRO <onboarding@resend.dev>',
+          to: [email],
+          subject: 'Você foi convidado para o Atlon PRO!',
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h1 style="color: #333;">Bem-vindo ao Atlon PRO!</h1>
+              <p>Seu treinador convidou você para acessar a plataforma.</p>
+              <p>Clique no botão abaixo para criar sua conta:</p>
+              <a href="${inviteLink}" style="display: inline-block; background-color: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 16px 0;">
+                Criar minha conta
+              </a>
+              <p style="color: #666; font-size: 14px;">Este link expira em 7 dias.</p>
+              <p style="color: #999; font-size: 12px;">Se você não esperava este email, pode ignorá-lo.</p>
+            </div>
+          `,
+        }),
+      })
+      emailSent = resendRes.ok;
+      if (!resendRes.ok) {
+        const resendError = await resendRes.text()
+        console.warn('[invite-student] Resend failed (non-blocking):', resendError)
+      }
+    } catch (emailErr: any) {
+      console.warn('[invite-student] Resend error (non-blocking):', emailErr?.message)
     }
 
-    console.log('[invite-student] invite sent successfully for:', email)
-    return json({ ok: true, message: 'Convite enviado com sucesso!' })
+    console.log('[invite-student] invite processed for:', email, 'emailSent:', emailSent)
+    return json({
+      ok: true,
+      message: emailSent ? 'Convite enviado com sucesso!' : 'Token gerado. Use o link abaixo para convidar o aluno.',
+      invite_link: inviteLink,
+      email_sent: emailSent,
+    })
 
   } catch (err: any) {
     console.error('[invite-student] unexpected error:', err?.message, err?.stack)
