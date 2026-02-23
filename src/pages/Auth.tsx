@@ -51,6 +51,7 @@ const Auth = () => {
           return;
         }
         if (profile?.role === 'student') {
+          await supabase.rpc('link_student_user');
           navigate('/student', { replace: true });
           return;
         }
@@ -67,6 +68,7 @@ const Auth = () => {
             role: 'student',
             name: data.user.user_metadata?.name || '',
           });
+          await supabase.rpc('link_student_user');
           navigate('/student', { replace: true });
         } else {
           // Not allowed — sign out and block
