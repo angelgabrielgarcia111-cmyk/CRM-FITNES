@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -16,15 +16,51 @@ const Auth = () => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [emailLocked, setEmailLocked] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  const redirectTo = searchParams.get('redirectTo') || '';
 
   const { session, role, loading: authLoading } = useAuth();
 
+  // If there's a redirectTo with student invite params, pre-fill email
+  useEffect(() => {
+    if (!redirectTo) return;
+    try {
+      const url = new URL(redirectTo, window.location.origin);
+      const studentId = url.searchParams.get('student_id');
+      const token = url.searchParams.get('token');
+      if (studentId && token) {
+        // Fetch student email from the student record
+        const fetchEmail = async () => {
+          const { data } = await supabase
+            .from('students')
+            .select('email, name')
+            .eq('id', studentId)
+            .limit(1);
+          if (data && data.length > 0 && data[0].email) {
+            setEmail(data[0].email);
+            setEmailLocked(true);
+            if (data[0].name) setName(data[0].name);
+            setIsLogin(false); // Default to register for new students
+          }
+        };
+        fetchEmail();
+      }
+    } catch {
+      // invalid redirectTo
+    }
+  }, [redirectTo]);
+
+  // If already logged in, redirect
   if (session && !authLoading) {
+    if (redirectTo) {
+      return <Navigate to={redirectTo} replace />;
+    }
     if (role === 'student') return <Navigate to="/student" replace />;
     if (role === 'trainer') return <Navigate to="/dashboard" replace />;
-    // role is null — don't redirect, stay on login
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,11 +70,15 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        // Sign in
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        // Check profile role
+        // If there's a redirectTo, go there after login
+        if (redirectTo) {
+          navigate(redirectTo, { replace: true });
+          return;
+        }
+
         const userId = data.user.id;
         const { data: profile } = await supabase
           .from('profiles')
@@ -56,13 +96,11 @@ const Auth = () => {
           return;
         }
 
-        // No profile or role null — check allowlist
         const { data: allowed } = await supabase.rpc('check_email_allowed', {
           check_email: email,
         });
 
         if (allowed) {
-          // Create/update profile as student
           await supabase.from('profiles').upsert({
             id: userId,
             role: 'student',
@@ -71,7 +109,6 @@ const Auth = () => {
           await supabase.rpc('link_student_user');
           navigate('/student', { replace: true });
         } else {
-          // Not allowed — sign out and block
           await supabase.auth.signOut();
           setBlocked(true);
         }
@@ -86,12 +123,24 @@ const Auth = () => {
           return;
         }
 
-        const { error } = await supabase.auth.signUp({
+        const { error, data } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { name, role: 'student' } },
         });
         if (error) throw error;
+
+        // If auto-confirmed, redirect
+        if (data.session && redirectTo) {
+          navigate(redirectTo, { replace: true });
+          return;
+        }
+        if (data.session) {
+          await supabase.rpc('link_student_user');
+          navigate('/student', { replace: true });
+          return;
+        }
+
         toast({
           title: 'Conta criada!',
           description: 'Verifique seu e-mail para confirmar o registro.',
@@ -173,10 +222,17 @@ const Auth = () => {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => !emailLocked && setEmail(e.target.value)}
                 placeholder="seu@email.com"
                 required
+                disabled={emailLocked}
+                className={emailLocked ? 'opacity-70' : ''}
               />
+              {emailLocked && (
+                <p className="text-xs text-muted-foreground">
+                  E-mail definido pelo convite do treinador.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>

@@ -20,20 +20,13 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const resendApiKey = Deno.env.get('RESEND_API_KEY')
 
-    console.log('[invite-student] env check:', {
-      hasUrl: !!supabaseUrl,
-      hasAnon: !!anonKey,
-      hasServiceRole: !!serviceRoleKey,
-    })
-
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return json({ ok: false, message: 'Configuração do servidor incompleta (variáveis de ambiente ausentes)' }, 500)
+    if (!supabaseUrl || !anonKey || !serviceRoleKey || !resendApiKey) {
+      return json({ ok: false, message: 'Configuração do servidor incompleta' }, 500)
     }
 
     const authHeader = req.headers.get('Authorization')
-    console.log('[invite-student] hasAuth:', !!authHeader)
-
     if (!authHeader) {
       return json({ ok: false, message: 'Autorização ausente' }, 401)
     }
@@ -47,7 +40,6 @@ Deno.serve(async (req) => {
 
     const student_id = body.student_id as string
     const email = body.email as string
-    console.log('[invite-student] input:', { student_id, email })
 
     if (!student_id || !email) {
       return json({ ok: false, message: 'student_id e email são obrigatórios' }, 400)
@@ -60,7 +52,6 @@ Deno.serve(async (req) => {
 
     const { data: { user: trainerUser }, error: authError } = await userClient.auth.getUser()
     if (authError || !trainerUser) {
-      console.error('[invite-student] authError:', authError)
       return json({ ok: false, message: 'Token inválido ou expirado' }, 401)
     }
 
@@ -83,7 +74,6 @@ Deno.serve(async (req) => {
       .single()
 
     if (fetchError || !student) {
-      console.error('[invite-student] fetchError:', fetchError)
       return json({ ok: false, message: 'Aluno não encontrado' }, 404)
     }
 
@@ -91,29 +81,72 @@ Deno.serve(async (req) => {
       return json({ ok: false, message: 'Aluno já possui conta vinculada' }, 400)
     }
 
-    // Use service role client to invite user by email
+    // Generate secure random token
+    const tokenBytes = new Uint8Array(32)
+    crypto.getRandomValues(tokenBytes)
+    const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+
+    // Hash the token with SHA-256
+    const encoder = new TextEncoder()
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(token))
+    const tokenHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
+
+    // Save hash and expiration to students table (service role to bypass RLS)
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
 
+    const { error: updateError } = await adminClient
+      .from('students')
+      .update({
+        invite_token_hash: tokenHash,
+        invited_at: new Date().toISOString(),
+        expires_at: expiresAt,
+        status: 'pending',
+      })
+      .eq('id', student_id)
+
+    if (updateError) {
+      console.error('[invite-student] updateError:', updateError)
+      return json({ ok: false, message: 'Erro ao salvar token de convite' }, 500)
+    }
+
+    // Build invite link
     const siteUrl = Deno.env.get('SITE_URL') || 'https://code-restorer-joy.lovable.app'
-    const redirectTo = `${siteUrl}/student/complete?student_id=${student_id}&email=${encodeURIComponent(email)}`
+    const redirectPath = `/student/complete-signup?student_id=${student_id}&token=${token}`
+    const inviteLink = `${siteUrl}/login?redirectTo=${encodeURIComponent(redirectPath)}`
 
-    console.log('[invite-student] redirectTo:', redirectTo)
+    console.log('[invite-student] inviteLink:', inviteLink)
 
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { role: 'student', student_id },
+    // Send email via Resend
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Atlon PRO <onboarding@resend.dev>',
+        to: [email],
+        subject: 'Você foi convidado para o Atlon PRO!',
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #333;">Bem-vindo ao Atlon PRO!</h1>
+            <p>Seu treinador convidou você para acessar a plataforma.</p>
+            <p>Clique no botão abaixo para criar sua conta:</p>
+            <a href="${inviteLink}" style="display: inline-block; background-color: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 16px 0;">
+              Criar minha conta
+            </a>
+            <p style="color: #666; font-size: 14px;">Este link expira em 7 dias.</p>
+            <p style="color: #999; font-size: 12px;">Se você não esperava este email, pode ignorá-lo.</p>
+          </div>
+        `,
+      }),
     })
 
-    if (inviteError) {
-      console.error('[invite-student] inviteError:', inviteError)
-
-      // If user already exists, they can just log in — link_student_user will handle re-linking
-      if ((inviteError as any).code === 'email_exists' || inviteError.message?.includes('already been registered')) {
-        console.log('[invite-student] user already exists, returning success')
-        return json({ ok: true, message: 'Aluno já possui conta. Ele pode fazer login diretamente com e-mail e senha.' })
-      }
-
-      return json({ ok: false, message: inviteError.message }, 400)
+    if (!resendRes.ok) {
+      const resendError = await resendRes.text()
+      console.error('[invite-student] Resend error:', resendError)
+      return json({ ok: false, message: 'Erro ao enviar email de convite' }, 500)
     }
 
     console.log('[invite-student] invite sent successfully for:', email)
