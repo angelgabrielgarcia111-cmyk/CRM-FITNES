@@ -14,8 +14,8 @@ const DashboardModule: React.FC = () => {
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-muted-foreground text-sm">Alunos Ativos</p>
-              <h3 className="text-3xl font-bold text-foreground mt-1">42</h3>
+              <p className="text-muted-foreground text-sm">Clientes Atendidos</p>
+              <h3 className="text-3xl font-bold text-foreground mt-1">+10mil</h3>
             </div>
             <div className="p-2.5 rounded-lg bg-primary/10">
               <Users size={20} className="text-primary" />
